@@ -14,7 +14,7 @@ Does not use DSL or 12 hour format currently.
 
 24h easy mode: 
 	
-if hours over 12, subtract by 2, if first digit is a 1, remove it, if first digit is a 2, make it a 1
+	if hours over 12, subtract by 2, if first digit is a 1, remove it, if first digit is a 2, make it a 1
 		
 	ie: 15 - 2 = 13, first digit 1 so remove, hour is 3
 	ie: 19 - 2 = 17, first digit 1 so remove, hour is 7
