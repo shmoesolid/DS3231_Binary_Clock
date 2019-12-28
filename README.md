@@ -10,7 +10,7 @@ Don't forget to include the DS3231 zip library in Arduino IDE under menu "Sketch
 
 Manually set time in setup() method.
 
-Does not use DSL or 12 hour format currently.
+Does not use DLS or 12 hour format currently.
 
 24h easy mode: 
 	
