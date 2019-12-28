@@ -1,6 +1,8 @@
 # DS3231_Binary_Clock
 
 Binary Clock v0.2 originally written by Gabriel J. Pensky.
+( Web: https://www.instructables.com/id/Beautiful-Arduino-Binary-Clock/ )
+
 Converted by Shane B. Koehler to use DS3231 with Rinky-Dink Electronics (Henning Karlsen) library v1.01
 ( Web: http://www.rinkydinkelectronics.com/library.php?id=73 )
 
