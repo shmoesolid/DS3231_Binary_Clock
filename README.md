@@ -6,6 +6,17 @@ Binary Clock v0.2 originally written by Gabriel J. Pensky.
 Converted by Shane B. Koehler to use DS3231 with Rinky-Dink Electronics (Henning Karlsen) library v1.01
 ( Web: http://www.rinkydinkelectronics.com/library.php?id=73 )
 
+ChangeLog:
+
+	v0.2.s.2
+ 	  -changed the way the LEDs are lit for a stable constant refresh rate, this
+  	   fixes the LED flicker/dimming so they all remain constant bright. It
+  	   also lowers voltage use from previous and should increase LED lifespan.
+  	   (default is 1ms loop iteration)
+
+	v0.2.s.1
+ 	  -intial conversion
+
 Don't forget to include the DS3231 zip library in Arduino IDE under menu "Sketch/Include Library/Add .ZIP Library..."
 
 Manually set time in setup() method.
