@@ -13,7 +13,9 @@
 //
 // v0.2.s.2
 // -changed the way the LEDs are lit for a stable constant refresh rate, this
-//  fixes the LED flicker/dimming so they all remain constant bright. (default is 1ms loop)
+//  fixes the LED flicker/dimming so they all remain constant bright. It
+//  also lowers voltage use from previous and should increase LED lifespan.
+//  (default is 1ms loop iteration)
 //
 // v0.2.s.1
 // -intial conversion
