@@ -1,3 +1,4 @@
+
 // ORIGINAL:
 //
 // Binary Clock v0.2
@@ -5,11 +6,18 @@
 
 // UPDATED:
 //
-// v0.2.s.1?
 // Converted to use DS3231 with Rinky-Dink Electronics (Henning Karlsen) library v1.01
 // ( Web: http://www.rinkydinkelectronics.com/library.php?id=73 )
 // Cleaned up for readability for us commoners
 // Shane B. Koehler (aka ShmoeSOLID)
+//
+// v0.2.s.2
+// -changed the way the LEDs are lit for a stable constant refresh rate, this
+//  fixes the LED flicker/dimming so they all remain constant bright. (default is 1ms loop)
+//
+// v0.2.s.1
+// -intial conversion
+
 
 // README:
 //
@@ -36,12 +44,12 @@
 // DS3231:  SDA pin   -> Arduino Digital 20 (SDA) or the dedicated SDA1 (Digital 70) pin
 //          SCL pin   -> Arduino Digital 21 (SCL) or the dedicated SCL1 (Digital 71) pin
 //
-// The internal pull-up resistors will be activated when using the 
+// The internal pull-up resistors will be activated when using the
 // hardware I2C interfaces.
 //
 // You can connect the DS3231 to any available pin but if you use any
 // other than what is described above the library will fall back to
-// a software-based, TWI-like protocol which will require exclusive access 
+// a software-based, TWI-like protocol which will require exclusive access
 // to the pins used, and you will also have to use appropriate, external
 // pull-up resistors on the data and clock signals.
 //
@@ -57,10 +65,13 @@ DS3231 rtc(SDA, SCL);
 // of the bcd, so these macros handle both bytes separately.
 //#define bcd2bin(h,l)    (((h)*10) + (l)) // not used but left in for reference
 #define bin2bcd_h(x)   ((x)/10)
-#define bin2bcd_l(x)   ((x)%10)
+#define bin2bcd_l(x)    ((x)%10)
 
 // Constants -----------------------------------------------------------------------------------------------------------
-const int BUTTON_RESET_THRESHOLD = 500; // time in milliseconds (can hold time change button(s) x time before it changes again)
+const int BUTTON_RESET_THRESHOLD = 500; // time in more or less milliseconds (can hold time change button(s) x time before it changes again)
+const int DELAY_BETWEEN_COLUMNS = 100; // time in microseconds between each column activation
+const int TIME_COLUMN_ACTIVATED = 100; // time in microseconds a column of LEDs stays activated prior to shutoff
+
 enum TimeType { Hour, Minute }; // for our IncreaseByOne function
 
 // Variables -----------------------------------------------------------------------------------------------------------
@@ -116,7 +127,7 @@ void loop()
   // handle actual LED lighting from our time byte variables
 
   // go through our columns
-  for (int coln = 0; coln <= 4; coln++)
+  for (int coln = 0; coln <= 4; coln++) // for (int coln = 4; coln >= 0; coln--)
   {
     // coln + 6 is the actual pin location
     // set high until complete with column(s)
@@ -124,71 +135,36 @@ void loop()
 
     switch (coln)
     {
-
       // handle low seconds (all bits)
       case 0:
-
-        // go through each row in our current column
-        for (int rown = 0; rown <= 3; rown++)
-        {
-          // s0 is our byte
-          // rown is the bit location in our seconds byte
-          // rown + 2 is the actual pin #
-          if (BitActive(s0, rown)) SwitchOnOff(rown + 2);
-        }
-
+        CycleRowsInColumn(s0);
         break;
 
       // handle high seconds (all bits) and high hours (first bit only)
       case 1:
-
-        // seconds
-        for (int rown = 0; rown <= 3; rown++)
-        {
-          if (BitActive(s1, rown)) SwitchOnOff(rown + 2);
-        }
-
-        // hour
-        if (BitActive(h1, 0)) SwitchOnOff(5);
-
+        CycleRowsInColumn(s1, h1, 0);
         break;
 
       // handle low minutes (all bits)
       case 2:
-        for (int rown = 0; rown <= 3; rown++)
-        {
-          if (BitActive(m0, rown)) SwitchOnOff(rown + 2);
-        }
-
+        CycleRowsInColumn(m0);
         break;
 
       // handle high minutes (all bits) and high hours (2nd bit only)
       case 3:
-
-        // minutes
-        for (int rown = 0; rown <= 3; rown++)
-        {
-          if (BitActive(m1, rown)) SwitchOnOff(rown + 2);
-        }
-
-        // hour
-        if (BitActive(h1, 1)) SwitchOnOff(5);
-
+        CycleRowsInColumn(m1, h1, 1);
         break;
 
       // handle low hours (all bits)
       case 4:
-        for (int rown = 0; rown <= 3; rown++)
-        {
-          if (BitActive(h0, rown)) SwitchOnOff(rown + 2);
-        }
-
+        CycleRowsInColumn(h0);
         break;
 
     }
 
     // shut down power on current column(s)
     digitalWrite(coln + 6, LOW);
+    delayMicroseconds(DELAY_BETWEEN_COLUMNS);
   }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -233,10 +209,10 @@ void loop()
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // handle time change per second or forced if manually changed hour/min via buttons
   // FYI time change manually will lose fractions of a second based on current setup
-  
+
   if (timen <= millis() - 1000 || forceTimeUpdate)
   {
-    char buffer[80];     // the code uses 70 characters (don't know if needed but left in bc sure why not [untested without, don't have arduino])
+    char buffer[80];     // the code uses 70 characters
 
     // set our t time using library getTime method
     // convert each var into byte vars accordingly using predefined high/low conversions
@@ -253,16 +229,45 @@ void loop()
 }
 
 // -------------------------------------------------------------------------------------------------------------
-// SwitchOnOff
+// CycleRowsInColumn
 //
-// This function sets pin location low to high real quick for visualization of LED
-// LED basically flashes quick, appears to stay on to human eye
+// Goes through each row and activates all active bits at once for a set time, then shuts same ones back off
 //
-void SwitchOnOff(int pin)
+void CycleRowsInColumn(byte mainByte)
 {
-  digitalWrite(pin, LOW); // sets oppoisite of our column so LED lights up
-  delayMicroseconds(100); // waits
-  digitalWrite(pin, HIGH); // reset to high so it is off by default
+  // activate the specified row if the bit in our byte is active
+  for (int rown = 0; rown <= 3; rown++) 
+  {
+    // rown is the bit location in the mainByte (s0, s1, m0, etc)
+    // rown + 2 is our actual pin
+    if (BitActive(mainByte, rown)) digitalWrite(rown + 2, LOW);
+  }
+
+  // wait (should handle brightness)
+  delayMicroseconds(TIME_COLUMN_ACTIVATED);
+
+  // deactivate the same rows we activated, if any
+  for (int rown = 0; rown <= 3; rown++) 
+  {
+    if (BitActive(mainByte, rown)) digitalWrite(rown + 2, HIGH);
+  }
+}
+
+// -------------------------------------------------------------------------------------------------------------
+// CycleRowsInColumn
+//
+// This is the overload if we need to change our high hours too as they are tied into other columns
+//
+void CycleRowsInColumn(byte mainByte, byte secByte, int secBitLocation)
+{
+  // activate secondary if needed (h1)
+  if (BitActive(secByte, secBitLocation)) digitalWrite(5, LOW);
+
+  // run our cycle as normal (also contains our needed delay)
+  CycleRowsInColumn(mainByte);
+
+  // deactivate secondary if needed
+  if (BitActive(secByte, secBitLocation)) digitalWrite(5, HIGH);
 }
 
 // -------------------------------------------------------------------------------------------------------------
